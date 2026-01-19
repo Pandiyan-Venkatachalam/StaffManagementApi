@@ -12,20 +12,21 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-#region  SERILOG CONFIG (IMPORTANT FIX)
+#region 🔹 RAILWAY PORT BINDING (IMPORTANT)
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+#endregion
+
+#region 🔹 SERILOG CONFIG
 Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Information()   
+    .MinimumLevel.Information()
     .WriteTo.Console()
-    .WriteTo.File(
-        "./Logs/log-.txt",
-        rollingInterval: RollingInterval.Day
-    )
     .CreateLogger();
 
 builder.Host.UseSerilog();
 #endregion
 
-#region  SERVICES
+#region 🔹 SERVICES
 builder.Services.AddControllers();
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -33,15 +34,18 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 builder.Services.AddScoped<IStaffRepository, StaffRepository>();
 builder.Services.AddScoped<IStaffService, StaffService>();
+
 builder.Services.AddScoped<ITaskRepository, TaskRepository>();
 builder.Services.AddScoped<ITaskService, TaskService>();
+
 builder.Services.AddScoped<IAuthRepository, AuthRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+
 builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 #endregion
 
-#region  JWT CONFIG (SAFE)
+#region 🔹 JWT CONFIG
 var jwtSection = builder.Configuration.GetSection("Jwt");
 
 var jwtKey = jwtSection["Key"];
@@ -52,7 +56,7 @@ if (string.IsNullOrEmpty(jwtKey) ||
     string.IsNullOrEmpty(jwtIssuer) ||
     string.IsNullOrEmpty(jwtAudience))
 {
-    throw new Exception("JWT configuration missing in appsettings.json");
+    throw new Exception("JWT configuration missing");
 }
 
 var key = Encoding.UTF8.GetBytes(jwtKey);
@@ -73,7 +77,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 #endregion
 
-#region  SWAGGER + JWT SUPPORT
+#region 🔹 SWAGGER (PRODUCTION ENABLED)
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(opt =>
 {
@@ -110,30 +114,26 @@ builder.Services.AddSwaggerGen(opt =>
 });
 #endregion
 
-#region  CORS
+#region 🔹 CORS (UPDATE LATER WITH LIVE FRONTEND URL)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp", policy =>
     {
-        policy.WithOrigins("http://localhost:5176")
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+        policy
+            .AllowAnyOrigin()
+            .AllowAnyHeader()
+            .AllowAnyMethod();
     });
 });
 #endregion
 
 var app = builder.Build();
 
-#region  MIDDLEWARE PIPELINE
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+#region 🔹 MIDDLEWARE PIPELINE
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
-
-app.UseHttpsRedirection(); 
 
 app.UseCors("AllowReactApp");
 
