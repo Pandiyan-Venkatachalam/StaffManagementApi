@@ -21,6 +21,7 @@ builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
     .WriteTo.Console()
+    .WriteTo.File("./Logs/log-.txt", rollingInterval: RollingInterval.Day)
     .CreateLogger();
 
 builder.Host.UseSerilog();
@@ -32,22 +33,25 @@ builder.Services.AddControllers();
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// Staff
 builder.Services.AddScoped<IStaffRepository, StaffRepository>();
 builder.Services.AddScoped<IStaffService, StaffService>();
 
+// Tasks
 builder.Services.AddScoped<ITaskRepository, TaskRepository>();
 builder.Services.AddScoped<ITaskService, TaskService>();
 
+// Auth
 builder.Services.AddScoped<IAuthRepository, AuthRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
+// Dashboard
 builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 #endregion
 
 #region 🔹 JWT CONFIG
 var jwtSection = builder.Configuration.GetSection("Jwt");
-
 var jwtKey = jwtSection["Key"];
 var jwtIssuer = jwtSection["Issuer"];
 var jwtAudience = jwtSection["Audience"];
@@ -56,7 +60,7 @@ if (string.IsNullOrEmpty(jwtKey) ||
     string.IsNullOrEmpty(jwtIssuer) ||
     string.IsNullOrEmpty(jwtAudience))
 {
-    throw new Exception("JWT configuration missing");
+    throw new Exception("JWT configuration missing in appsettings.json");
 }
 
 var key = Encoding.UTF8.GetBytes(jwtKey);
@@ -77,7 +81,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 #endregion
 
-#region 🔹 SWAGGER (PRODUCTION ENABLED)
+#region 🔹 SWAGGER CONFIG
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(opt =>
 {
@@ -114,13 +118,13 @@ builder.Services.AddSwaggerGen(opt =>
 });
 #endregion
 
-#region 🔹 CORS (UPDATE LATER WITH LIVE FRONTEND URL)
+#region 🔹 CORS (UPDATE WITH LIVE FRONTEND URL)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowReactApp", policy =>
     {
         policy
-            .AllowAnyOrigin()
+            .WithOrigins("https://staff-management-ui.vercel.app") // LIVE frontend
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
@@ -130,8 +134,20 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 #region 🔹 MIDDLEWARE PIPELINE
-app.UseSwagger();
-app.UseSwaggerUI();
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+else
+{
+    // Optional: enable Swagger in production too
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Staff Management API v1");
+    });
+}
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
