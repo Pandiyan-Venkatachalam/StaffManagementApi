@@ -8,6 +8,8 @@ using StaffManagementApi.Interfaces;
 using StaffManagementApi.Middleware;
 using StaffManagementApi.Repositories;
 using StaffManagementApi.Services;
+using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.AspNetCore.OutputCaching;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -30,7 +32,7 @@ builder.Host.UseSerilog();
 #region 🔹 SERVICES
 builder.Services.AddControllers();
 
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
+builder.Services.AddDbContextPool<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"),
     npgsqlOptions => npgsqlOptions.EnableRetryOnFailure()));
 
@@ -49,6 +51,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 // Dashboard
 builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddOutputCache();
 #endregion
 
 #region 🔹 JWT CONFIG
@@ -132,6 +135,13 @@ builder.Services.AddCors(options =>
 });
 #endregion
 
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(
+        new[] { "application/json", "text/html" });
+});
+
 var app = builder.Build();
 
 #region 🔹 MIDDLEWARE PIPELINE
@@ -151,9 +161,11 @@ else
 }
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
+app.UseHttpsRedirection(); 
 
 app.UseCors("AllowReactApp");
 
+app.UseOutputCache();
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -161,4 +173,5 @@ app.MapControllers();
 #endregion
 
 app.Run();
+
 
